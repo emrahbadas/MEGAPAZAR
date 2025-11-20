@@ -160,13 +160,13 @@ class EnhancedConversationAgent(BaseAgent):
             "kurtulmak istiyorum", "satabilirim", "fiyat öğrenmem lazım"
         ]
         
-        # 🎯 CRITICAL FIX: Eğer brand veya teknik detay varsa + fiyat sorusu → PRICING intent
+        # 🎯 CRITICAL FIX: Eğer brand veya teknik detay varsa + fiyat sorusu → LISTING intent
         has_brand = any(brand in msg_lower for brand in ["iphone", "samsung", "hp", "dell", "lenovo", "mercedes", "bmw"])
         has_price_question = any(word in msg_lower for word in ["düşük mü", "çok mu", "kaç", "fiyat", "tl", "lira"])
         
         if has_brand and has_price_question:
-            self.log("🎯 PRICING intent detected: brand + price question")
-            return UserIntent.PRICING
+            self.log("🎯 LISTING intent detected: brand + price question")
+            return UserIntent.LISTING
         
         if any(keyword in msg_lower for keyword in listing_keywords) or has_image:
             return UserIntent.LISTING
@@ -358,10 +358,15 @@ JSON:
                 state["response_type"] = "gathering_info"
                 return "Harika! Hangi ürünü satmak istiyorsunuz? Fotoğraf gönderebilir veya ürün detaylarını yazabilirsiniz. 📸"
         
-        elif intent == UserIntent.PRICING or (isinstance(intent, str) and intent == "pricing"):
-            # 🎯 PRICING intent - PricingAgent'a yönlendir
+        # Check if it's a price-related question with product details
+        msg_lower = message.lower()
+        has_brand = any(brand in msg_lower for brand in ["iphone", "samsung", "hp", "dell", "lenovo", "mercedes", "bmw"])
+        has_price_question = any(word in msg_lower for word in ["düşük mü", "çok mu", "kaç", "fiyat", "tl", "lira"])
+        
+        if intent == UserIntent.LISTING and has_brand and has_price_question:
+            # 🎯 LISTING with price question - PricingAgent'a yönlendir
             from agents.pricing import PricingAgent
-            self.log("💰 PRICING intent detected - calling PricingAgent")
+            self.log("💰 LISTING with price question - calling PricingAgent")
             
             # Product info session'dan al
             product_info = session.product_info or {}
