@@ -1,0 +1,226 @@
+{
+  "name": "MEGAPAZAR Order Flow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-order",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "order-webhook",
+      "name": "Order Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "megapazar-order"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse order request from WhatsApp\nconst phoneNumber = $json.phoneNumber;\nconst messageBody = $json.messageBody;\n\n// Extract listing ID from message\n// \"1 numaralı ilana sipariş vermek istiyorum\" -> 1\n// \"3. ilana sipariş ver\" -> 3\nconst match = messageBody.match(/(\\d+)/); // Find first number\n\nif (!match) {\n  return {\n    json: {\n      phoneNumber,\n      needsListingId: true,\n      message: '❓ *Hangi ilana sipariş vermek istersin?*\\n\\nÖnce arama yap, sonra ilan numarasını söyle.\\nÖrnek: \"1 numaralı ilana sipariş vermek istiyorum\"'\n    }\n  };\n}\n\nconst listingIndex = parseInt(match[1]) - 1; // Convert to 0-based index\n\n// Extract quantity if specified\nlet quantity = 1;\nconst qtyMatch = messageBody.match(/(\\d+)\\s*(adet|tane|piece)/i);\nif (qtyMatch) {\n  quantity = parseInt(qtyMatch[1]);\n}\n\nreturn {\n  json: {\n    phoneNumber,\n    listingIndex,\n    quantity,\n    needsListingId: false,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "parse-order",
+      "name": "Parse Order Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.needsListingId }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-listing",
+      "name": "Has Listing ID?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "content": "={{ $json.message }}"
+      },
+      "id": "ask-listing",
+      "name": "Ask for Listing ID",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.BACKEND_API_URL || 'https://your-backend-url.ngrok.io' }}/orders",
+        "method": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"buyer_user_id\": \"{{ $json.phoneNumber }}\",\n  \"listing_index\": {{ $json.listingIndex }},\n  \"quantity\": {{ $json.quantity }}\n}"
+      },
+      "id": "create-order",
+      "name": "Create Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Format order confirmation for WhatsApp\nconst order = $json.order || {};\nconst listing = order.listing || {};\n\nif (!order.id) {\n  return {\n    json: {\n      message: '❌ Sipariş oluşturulamadı. Lütfen geçerli bir ilan numarası gir.'\n    }\n  };\n}\n\nlet message = '✅ *Siparişin başarıyla oluşturuldu!*\\n\\n';\nmessage += `📦 *Ürün:* ${listing.title}\\n`;\nmessage += `💰 *Fiyat:* ${listing.price} TL\\n`;\nmessage += `📊 *Adet:* ${order.quantity}\\n`;\nmessage += `💵 *Toplam:* ${order.total_price} TL\\n`;\nmessage += `📍 *Konum:* ${listing.location || 'Belirtilmemiş'}\\n\\n`;\n\nmessage += `🎯 *Durum:* ${order.status}\\n`;\nmessage += `🆔 *Sipariş No:* ${order.id}\\n\\n`;\n\nmessage += `📞 *Satıcı ile iletişime geç:*\\n`;\nmessage += `Satıcıya bildirim gönderildi. Kısa süre içinde iletişime geçecek.\\n\\n`;\n\nmessage += `📋 Siparişlerini görmek için \"siparişlerim\" yaz.`;\n\nreturn {\n  json: {\n    message,\n    orderId: order.id,\n    sellerId: order.seller_user_id\n  }\n};"
+      },
+      "id": "format-confirmation",
+      "name": "Format Order Confirmation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "content": "={{ $json.message }}"
+      },
+      "id": "send-confirmation",
+      "name": "Send Confirmation to Buyer",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Format seller notification\nconst order = $input.first().json.order || {};\nconst listing = order.listing || {};\nconst buyerPhone = order.buyer_user_id;\n\nlet message = '🔔 *Yeni Sipariş Geldi!*\\n\\n';\nmessage += `📦 *İlan:* ${listing.title}\\n`;\nmessage += `💰 *Fiyat:* ${listing.price} TL\\n`;\nmessage += `📊 *Adet:* ${order.quantity}\\n`;\nmessage += `💵 *Toplam:* ${order.total_price} TL\\n\\n`;\n\nmessage += `👤 *Alıcı:* ${buyerPhone}\\n`;\nmessage += `🆔 *Sipariş No:* ${order.id}\\n\\n`;\n\nmessage += `✅ Siparişi onaylamak için: \"${order.id} onaylıyorum\"\\n`;\nmessage += `❌ Reddetmek için: \"${order.id} reddediyorum\"`;\n\nreturn {\n  json: {\n    to: order.seller_user_id,\n    message\n  }\n};"
+      },
+      "id": "format-seller-notification",
+      "name": "Format Seller Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1050, 500]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "from": "={{ $env.TWILIO_WHATSAPP_NUMBER }}",
+        "to": "=whatsapp:{{ $json.to }}",
+        "message": "={{ $json.message }}",
+        "options": {}
+      },
+      "id": "send-to-seller",
+      "name": "Notify Seller",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [1250, 500],
+      "credentials": {
+        "twilioApi": {
+          "id": "1",
+          "name": "Twilio WhatsApp Prod"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "❌ Sipariş oluşturulamadı. Lütfen tekrar dene veya \"yardım\" yaz."
+      },
+      "id": "error-response",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Order Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Order Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Order Request": {
+      "main": [
+        [
+          {
+            "node": "Has Listing ID?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Listing ID?": {
+      "main": [
+        [
+          {
+            "node": "Ask for Listing ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Order": {
+      "main": [
+        [
+          {
+            "node": "Format Order Confirmation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format Seller Notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Order Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation to Buyer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Seller Notification": {
+      "main": [
+        [
+          {
+            "node": "Notify Seller",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-17T00:00:00.000Z",
+  "versionId": "1"
+}

@@ -1,0 +1,112 @@
+{
+    "name": "MEGAPAZAR WhatsApp Bridge (Simple)",
+    "nodes": [
+        {
+            "parameters": {
+                "path": "whatsapp-bridge",
+                "responseMode": "lastNode",
+                "options": {}
+            },
+            "id": "webhook-1",
+            "name": "WhatsApp Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                240,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://web-production-0e14b.up.railway.app/conversation",
+                "authentication": "none",
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "user_id",
+                            "value": "={{ $json.From }}"
+                        },
+                        {
+                            "name": "message",
+                            "value": "={{ $json.Body }}"
+                        },
+                        {
+                            "name": "platform",
+                            "value": "whatsapp"
+                        }
+                    ]
+                },
+                "options": {
+                    "timeout": 30000
+                }
+            },
+            "id": "http-1",
+            "name": "Call Backend API",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                460,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "authentication": "credentials",
+                "resource": "send",
+                "message": "={{ $json.response || $json.message || 'Yanıt alındı!' }}",
+                "toNumber": "={{ $('WhatsApp Webhook').item.json.From }}",
+                "fromNumber": "whatsapp:+14155238886",
+                "options": {}
+            },
+            "id": "twilio-1",
+            "name": "Send WhatsApp Response",
+            "type": "n8n-nodes-base.twilio",
+            "typeVersion": 1,
+            "position": [
+                680,
+                300
+            ],
+            "credentials": {
+                "twilioApi": {
+                    "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+                    "name": "Twilio Account"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "WhatsApp Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Call Backend API",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Call Backend API": {
+            "main": [
+                [
+                    {
+                        "node": "Send WhatsApp Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "staticData": null,
+    "tags": [],
+    "triggerCount": 0,
+    "updatedAt": "2025-11-18T22:30:00.000Z",
+    "versionId": "1"
+}

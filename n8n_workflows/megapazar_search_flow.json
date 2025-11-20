@@ -1,0 +1,179 @@
+{
+  "name": "MEGAPAZAR Search Flow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-search",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "search-webhook",
+      "name": "Search Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "megapazar-search"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse search request from WhatsApp\nconst phoneNumber = $json.phoneNumber;\nconst messageBody = $json.messageBody;\n\n// Extract search query\n// \"rotor arıyorum\" -> \"rotor\"\n// \"kompresör bul\" -> \"kompresör\"\nlet query = messageBody.toLowerCase()\n  .replace(/arıyorum|ariyorum|ara|bul|istiyorum/gi, '')\n  .trim();\n\n// If no query found, ask user\nif (!query || query.length < 2) {\n  return {\n    json: {\n      phoneNumber,\n      needsQuery: true,\n      message: '🔍 *Ne aramak istersin?*\\n\\nÖrnek:\\n• rotor\\n• kompresör 220V\\n• soğutma cihazı'\n    }\n  };\n}\n\nreturn {\n  json: {\n    phoneNumber,\n    query,\n    needsQuery: false,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "parse-search",
+      "name": "Parse Search Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.needsQuery }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-query",
+      "name": "Has Query?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "content": "={{ $json.message }}"
+      },
+      "id": "ask-query",
+      "name": "Ask for Query",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.BACKEND_API_URL || 'https://your-backend-url.ngrok.io' }}/search",
+        "method": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"user_id\": \"{{ $json.phoneNumber }}\",\n  \"query\": \"{{ $json.query }}\",\n  \"limit\": 5\n}"
+      },
+      "id": "call-search-api",
+      "name": "Call Search API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Format search results for WhatsApp\nconst results = $json.results || [];\nconst query = $json.query || 'ürün';\n\nif (results.length === 0) {\n  return {\n    json: {\n      message: `❌ *Üzgünüm, \"${query}\" için sonuç bulunamadı.*\\n\\nBaşka bir arama yapmak ister misin?`\n    }\n  };\n}\n\n// Format results\nlet message = `🔍 *\"${query}\" için ${results.length} sonuç buldum:*\\n\\n`;\n\nresults.forEach((item, index) => {\n  const num = index + 1;\n  message += `*${num}. ${item.title}*\\n`;\n  message += `💰 ${item.price} TL\\n`;\n  message += `📍 ${item.location || 'Konum belirtilmemiş'}\\n`;\n  message += `🔧 ${item.condition || 'Durum belirtilmemiş'}\\n`;\n  \n  if (item.similarity_score) {\n    const matchPercent = Math.round(item.similarity_score * 100);\n    message += `✅ %${matchPercent} eşleşme\\n`;\n  }\n  \n  message += `📝 ${item.description?.substring(0, 80) || 'Açıklama yok'}...\\n`;\n  message += `\\n---\\n\\n`;\n});\n\nmessage += `📦 *Sipariş vermek için:*\\n\"[numara] numaralı ilana sipariş vermek istiyorum\"\\n\\nÖrnek: \"1 numaralı ilana sipariş vermek istiyorum\"`;\n\nreturn {\n  json: {\n    message,\n    results,\n    resultCount: results.length\n  }\n};"
+      },
+      "id": "format-results",
+      "name": "Format Search Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "content": "={{ $json.message }}"
+      },
+      "id": "send-results",
+      "name": "Send Search Results",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "content": "❌ Arama sırasında bir hata oluştu. Lütfen tekrar dene."
+      },
+      "id": "error-response",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1050, 500]
+    }
+  ],
+  "connections": {
+    "Search Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Search Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Search Query": {
+      "main": [
+        [
+          {
+            "node": "Has Query?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Query?": {
+      "main": [
+        [
+          {
+            "node": "Ask for Query",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call Search API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Search API": {
+      "main": [
+        [
+          {
+            "node": "Format Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Search Results": {
+      "main": [
+        [
+          {
+            "node": "Send Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-17T00:00:00.000Z",
+  "versionId": "1"
+}

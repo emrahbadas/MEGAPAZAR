@@ -1,0 +1,62 @@
+{
+  "name": "Twilio WhatsApp Auto Response",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "whatsapp-auto-reply",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-node-1",
+      "name": "WhatsApp Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "auto-reply-webhook"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n    <Message>{{ $json.Body }} mesajınız alındı! 🚀 MEGAPAZAR sistemi aktif.</Message>\n</Response>",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-node-1",
+      "name": "Send TwiML Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [450, 300]
+    }
+  ],
+  "connections": {
+    "WhatsApp Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send TwiML Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-18T19:00:00.000Z",
+  "versionId": "1"
+}

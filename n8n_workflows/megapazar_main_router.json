@@ -1,0 +1,338 @@
+{
+    "name": "MEGAPAZAR Main Router",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "whatsapp-webhook",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "webhook-1",
+            "name": "WhatsApp Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ],
+            "webhookId": "megapazar-whatsapp-main"
+        },
+        {
+            "parameters": {
+                "mode": "raw",
+                "jsonOutput": "={{ JSON.stringify($json) }}",
+                "options": {}
+            },
+            "id": "parse-incoming",
+            "name": "Parse Incoming Message",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 1,
+            "position": [
+                450,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "functionCode": "// Extract WhatsApp message details\nconst body = $input.item.json.body || $input.item.json;\n\nconst from = body.From || body.from || '';\nconst messageBody = body.Body || body.body || '';\nconst mediaUrl = body.MediaUrl0 || body.mediaUrl0 || null;\nconst numMedia = parseInt(body.NumMedia || body.numMedia || 0);\n\n// Clean phone number (remove 'whatsapp:' prefix)\nconst phoneNumber = from.replace('whatsapp:', '').trim();\n\n// Determine user intent\nlet intent = 'unknown';\nconst lowerMessage = messageBody.toLowerCase().trim();\n\n// Intent classification\nif (!lowerMessage || lowerMessage === 'merhaba' || lowerMessage === 'hi' || lowerMessage === 'hello') {\n  intent = 'welcome';\n} else if (lowerMessage.includes('ilan ver') || lowerMessage.includes('satmak istiyorum') || lowerMessage.includes('satis') || lowerMessage.includes('sat')) {\n  intent = 'create_listing';\n} else if (lowerMessage.includes('ara') || lowerMessage.includes('ariyorum') || lowerMessage.includes('bul')) {\n  intent = 'search';\n} else if (lowerMessage.includes('siparis') || lowerMessage.includes('almak istiyorum') || lowerMessage.includes('satin')) {\n  intent = 'order';\n} else if (lowerMessage.includes('ilanlarim') || lowerMessage.includes('listem')) {\n  intent = 'my_listings';\n} else if (lowerMessage.includes('siparislerim')) {\n  intent = 'my_orders';\n} else if (lowerMessage.includes('yardim') || lowerMessage === 'help' || lowerMessage === '?') {\n  intent = 'help';\n} else if (numMedia > 0) {\n  // If user sends media without text, assume listing flow\n  intent = 'media_upload';\n} else {\n  // Default: continue conversation or search\n  intent = 'conversation';\n}\n\nreturn {\n  json: {\n    phoneNumber,\n    messageBody,\n    mediaUrl,\n    numMedia,\n    intent,\n    originalPayload: body,\n    timestamp: new Date().toISOString()\n  }\n};"
+            },
+            "id": "classify-intent",
+            "name": "Classify Intent",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 1,
+            "position": [
+                650,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "rules": {
+                    "values": [
+                        {
+                            "conditions": {
+                                "string": [
+                                    {
+                                        "value1": "={{ $json.intent }}",
+                                        "value2": "welcome"
+                                    }
+                                ]
+                            },
+                            "renameOutput": true,
+                            "outputKey": "welcome"
+                        },
+                        {
+                            "conditions": {
+                                "string": [
+                                    {
+                                        "value1": "={{ $json.intent }}",
+                                        "operation": "contains",
+                                        "value2": "listing"
+                                    }
+                                ]
+                            },
+                            "renameOutput": true,
+                            "outputKey": "listing"
+                        },
+                        {
+                            "conditions": {
+                                "string": [
+                                    {
+                                        "value1": "={{ $json.intent }}",
+                                        "value2": "search"
+                                    }
+                                ]
+                            },
+                            "renameOutput": true,
+                            "outputKey": "search"
+                        },
+                        {
+                            "conditions": {
+                                "string": [
+                                    {
+                                        "value1": "={{ $json.intent }}",
+                                        "value2": "order"
+                                    }
+                                ]
+                            },
+                            "renameOutput": true,
+                            "outputKey": "order"
+                        },
+                        {
+                            "conditions": {
+                                "string": [
+                                    {
+                                        "value1": "={{ $json.intent }}",
+                                        "value2": "help"
+                                    }
+                                ]
+                            },
+                            "renameOutput": true,
+                            "outputKey": "help"
+                        },
+                        {
+                            "conditions": {
+                                "string": [
+                                    {
+                                        "value1": "={{ $json.intent }}",
+                                        "value2": "conversation"
+                                    }
+                                ]
+                            },
+                            "renameOutput": true,
+                            "outputKey": "conversation"
+                        }
+                    ]
+                },
+                "options": {
+                    "fallbackOutput": "extra"
+                }
+            },
+            "id": "router",
+            "name": "Route by Intent",
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 1,
+            "position": [
+                850,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "content": "🎉 *Hoş geldin MEGAPAZAR'a!*\\n\\nBen senin AI asistanınım. Şunları yapabilirim:\\n\\n📦 *İlan Ver* - \"ilan vermek istiyorum\"\\n🔍 *Ürün Ara* - \"rotor arıyorum\"\\n📋 *İlanlarım* - \"ilanlarımı göster\"\\n📊 *Siparişlerim* - \"siparişlerimi göster\"\\n❓ *Yardım* - \"yardım\"\\n\\nHemen başlamak için yukarıdaki komutlardan birini yazabilirsin!"
+            },
+            "id": "welcome-message",
+            "name": "Send Welcome Message",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1050,
+                100
+            ]
+        },
+        {
+            "parameters": {
+                "content": "📚 *MEGAPAZAR Yardım Menüsü*\\n\\n*İlan Verme:*\\n• \"ilan vermek istiyorum\"\\n• \"satmak istiyorum\"\\n\\n*Ürün Arama:*\\n• \"rotor arıyorum\"\\n• \"kompresör bul\"\\n\\n*Listeleme:*\\n• \"ilanlarımı göster\"\\n• \"siparişlerimi göster\"\\n\\n*Diğer:*\\n• \"yardım\" - Bu menüyü göster\\n\\nSorularınız için doğrudan mesaj atabilirsiniz! 💬"
+            },
+            "id": "help-message",
+            "name": "Send Help Menu",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1050,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "url": "={{ $env.BACKEND_API_URL || 'https://your-backend-url.ngrok.io' }}/conversation",
+                "method": "POST",
+                "jsonParameters": true,
+                "options": {},
+                "bodyParametersJson": "={\n  \"user_id\": \"{{ $json.phoneNumber }}\",\n  \"message\": \"{{ $json.messageBody }}\",\n  \"source\": \"whatsapp\"\n}"
+            },
+            "id": "call-backend-conversation",
+            "name": "Call Backend API - Conversation",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 1,
+            "position": [
+                1050,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "content": "={{ $json.response }}"
+            },
+            "id": "respond-conversation",
+            "name": "Send API Response",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1250,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "content": "🚀 *Harika! İlan vermeye başlayalım.*\\n\\nBana şunları söyle:\\n1️⃣ Ne satıyorsun?\\n2️⃣ Fiyatı nedir?\\n3️⃣ Ürünün durumu (yeni/ikinci el)?\\n\\nÖrnek: \"Rotor satıyorum, 150 TL, ikinci el\""
+            },
+            "id": "start-listing",
+            "name": "Start Listing Flow",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1050,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "content": "🔍 *Ne aramak istersin?*\\n\\nÖrnek:\\n• \"rotor arıyorum\"\\n• \"kompresör 220V\"\\n• \"500 TL'ye kadar soğutma cihazı\""
+            },
+            "id": "start-search",
+            "name": "Start Search Flow",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1050,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "content": "❌ Üzgünüm, ne demek istediğini anlayamadım.\\n\\n\"yardım\" yazarak komutları görebilirsin."
+            },
+            "id": "fallback",
+            "name": "Fallback Response",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1050,
+                600
+            ]
+        }
+    ],
+    "connections": {
+        "WhatsApp Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Incoming Message",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Incoming Message": {
+            "main": [
+                [
+                    {
+                        "node": "Classify Intent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Classify Intent": {
+            "main": [
+                [
+                    {
+                        "node": "Route by Intent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Route by Intent": {
+            "main": [
+                [
+                    {
+                        "node": "Send Welcome Message",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Start Listing Flow",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Start Search Flow",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [],
+                [
+                    {
+                        "node": "Send Help Menu",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Call Backend API - Conversation",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Fallback Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Call Backend API - Conversation": {
+            "main": [
+                [
+                    {
+                        "node": "Send API Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "staticData": null,
+    "tags": [],
+    "triggerCount": 1,
+    "updatedAt": "2025-01-17T00:00:00.000Z",
+    "versionId": "1"
+}
