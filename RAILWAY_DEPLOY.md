@@ -16,17 +16,26 @@
 ### 3. Environment Variables Ekle
 Railway dashboard'da **Variables** sekmesine git ve şunları ekle:
 
-**Lokal `.env` dosyanızdaki değerleri kopyalayın:**
+**ZORUNLU (Bunlar olmadan sistem çalışmaz):**
+
+Lokal `.env` dosyanızdaki tüm değerleri Railway'e kopyalayın:
 
 ```env
-OPENAI_API_KEY=<.env dosyanızdan kopyalayın>
-SUPABASE_URL=<.env dosyanızdan kopyalayın>
-SUPABASE_KEY=<.env dosyanızdan kopyalayın>
-SUPABASE_SERVICE_KEY=<.env dosyanızdan kopyalayın>
+OPENAI_API_KEY=(lokal .env'den kopyala)
+SUPABASE_URL=(lokal .env'den kopyala)
+SUPABASE_KEY=(lokal .env'den kopyala)
+SUPABASE_SERVICE_KEY=(lokal .env'den kopyala)
+TWILIO_ACCOUNT_SID=(lokal .env'den kopyala)
+TWILIO_AUTH_TOKEN=(lokal .env'den kopyala)
+N8N_WEBHOOK_URL=(lokal .env'den kopyala)
+HOST=0.0.0.0
+PORT=8000
 DEBUG=false
 ```
 
-> 💡 **Not**: Lokal `megapazar-agent-api/.env` dosyanızdaki tüm değerleri Railway'e kopyalayın.
+> ⚠️ **KRITIK**: Twilio ve n8n credentials **ZORUNLU**! Sistem n8n üzerinden WhatsApp ile çalışıyor.
+
+> 💡 **Nasıl Yapılır**: Lokal `.env` dosyanızı açın → Her satırı Railway Variables sekmesine kopyalayın (Key=Value formatında)
 
 ### 4. Deploy Başlat
 1. **Deploy** butonuna tıkla

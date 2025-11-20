@@ -18,12 +18,12 @@ class Settings(BaseSettings):
     port: int = 8000
     debug: bool = True
     
-    # n8n (Opsiyonel)
-    n8n_webhook_url: str = ""
+    # n8n (Zorunlu - WhatsApp bridge için)
+    n8n_webhook_url: str
     
-    # Twilio (Opsiyonel - WhatsApp bridge için)
-    twilio_account_sid: str = ""
-    twilio_auth_token: str = ""
+    # Twilio (Zorunlu - WhatsApp entegrasyonu için)
+    twilio_account_sid: str
+    twilio_auth_token: str
     
     class Config:
         env_file = ".env"
