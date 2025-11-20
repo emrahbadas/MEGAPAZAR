@@ -51,6 +51,29 @@ copy .env.example .env
 # .env dosyasını düzenle ve API key'leri ekle
 ```
 
+**Gerekli Environment Variables:**
+
+```dotenv
+# OpenAI (Zorunlu)
+OPENAI_API_KEY=sk-proj-...
+
+# Supabase (Zorunlu)
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_KEY=eyJhbGci...
+SUPABASE_SERVICE_KEY=eyJhbGci...
+
+# Twilio WhatsApp (Opsiyonel - WhatsApp entegrasyonu için)
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token_here
+
+# Server
+HOST=0.0.0.0
+PORT=8000
+DEBUG=true
+```
+
+⚠️ **ÖNEMLİ**: `.env` dosyası asla GitHub'a yüklenmemelidir! Sadece `.env.example` template'i commit edilmelidir.
+
 **.env dosyası:**
 ```env
 OPENAI_API_KEY=sk-proj-xxx
