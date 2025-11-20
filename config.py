@@ -29,6 +29,21 @@ class Settings(BaseSettings):
         env_file = ".env"
         case_sensitive = False
         extra = "allow"  # Extra fields izin ver
+        
+        # Railway büyük harfle gönderirse, küçük harfle map et
+        fields = {
+            'openai_api_key': {'env': ['OPENAI_API_KEY', 'openai_api_key']},
+            'supabase_url': {'env': ['SUPABASE_URL', 'supabase_url']},
+            'supabase_key': {'env': ['SUPABASE_KEY', 'supabase_key']},
+            'supabase_service_key': {'env': ['SUPABASE_SERVICE_KEY', 'supabase_service_key']},
+            'n8n_webhook_url': {'env': ['N8N_WEBHOOK_URL', 'n8n_webhook_url']},
+            'twilio_account_sid': {'env': ['TWILIO_ACCOUNT_SID', 'twilio_account_sid']},
+            'twilio_auth_token': {'env': ['TWILIO_AUTH_TOKEN', 'twilio_auth_token']},
+            'tavily_api_key': {'env': ['TAVILY_API_KEY', 'tavily_api_key']},
+            'host': {'env': ['HOST', 'host']},
+            'port': {'env': ['PORT', 'port']},
+            'debug': {'env': ['DEBUG', 'debug']},
+        }
 
 @lru_cache()
 def get_settings() -> Settings:
