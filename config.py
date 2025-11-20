@@ -1,49 +1,36 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 from functools import lru_cache
 
 class Settings(BaseSettings):
     # OpenAI
-    openai_api_key: str
+    openai_api_key: str = Field(validation_alias='OPENAI_API_KEY')
     
     # Supabase
-    supabase_url: str
-    supabase_key: str
-    supabase_service_key: str
+    supabase_url: str = Field(validation_alias='SUPABASE_URL')
+    supabase_key: str = Field(validation_alias='SUPABASE_KEY')
+    supabase_service_key: str = Field(validation_alias='SUPABASE_SERVICE_KEY')
     
     # Tavily (Opsiyonel)
-    tavily_api_key: str = ""
+    tavily_api_key: str = Field(default="", validation_alias='TAVILY_API_KEY')
     
     # Server
-    host: str = "0.0.0.0"
-    port: int = 8000
-    debug: bool = True
+    host: str = Field(default="0.0.0.0", validation_alias='HOST')
+    port: int = Field(default=8000, validation_alias='PORT')
+    debug: bool = Field(default=True, validation_alias='DEBUG')
     
     # n8n (Zorunlu - WhatsApp bridge için)
-    n8n_webhook_url: str
+    n8n_webhook_url: str = Field(validation_alias='N8N_WEBHOOK_URL')
     
     # Twilio (Zorunlu - WhatsApp entegrasyonu için)
-    twilio_account_sid: str
-    twilio_auth_token: str
+    twilio_account_sid: str = Field(validation_alias='TWILIO_ACCOUNT_SID')
+    twilio_auth_token: str = Field(validation_alias='TWILIO_AUTH_TOKEN')
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
-        extra = "allow"  # Extra fields izin ver
-        
-        # Railway büyük harfle gönderirse, küçük harfle map et
-        fields = {
-            'openai_api_key': {'env': ['OPENAI_API_KEY', 'openai_api_key']},
-            'supabase_url': {'env': ['SUPABASE_URL', 'supabase_url']},
-            'supabase_key': {'env': ['SUPABASE_KEY', 'supabase_key']},
-            'supabase_service_key': {'env': ['SUPABASE_SERVICE_KEY', 'supabase_service_key']},
-            'n8n_webhook_url': {'env': ['N8N_WEBHOOK_URL', 'n8n_webhook_url']},
-            'twilio_account_sid': {'env': ['TWILIO_ACCOUNT_SID', 'twilio_account_sid']},
-            'twilio_auth_token': {'env': ['TWILIO_AUTH_TOKEN', 'twilio_auth_token']},
-            'tavily_api_key': {'env': ['TAVILY_API_KEY', 'tavily_api_key']},
-            'host': {'env': ['HOST', 'host']},
-            'port': {'env': ['PORT', 'port']},
-            'debug': {'env': ['DEBUG', 'debug']},
-        }
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="allow"
+    )
 
 @lru_cache()
 def get_settings() -> Settings:
