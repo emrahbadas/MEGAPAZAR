@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from models.schemas import ListingRequest, AgentResponse, SearchRequest
 from workflows.listing_flow_enhanced import create_enhanced_listing_workflow
 from utils.logger import setup_logger
@@ -16,6 +17,10 @@ app = FastAPI(
     description="AI-powered listing and search platform with enhanced conversation",
     version="2.0.0"
 )
+
+# UTF-8 encoding için custom response class
+class UTF8JSONResponse(JSONResponse):
+    media_type = "application/json; charset=utf-8"
 
 # CORS middleware
 app.add_middleware(
@@ -110,7 +115,7 @@ async def clear_session(user_id: str):
         del session_manager.sessions[user_id]
     return {"message": f"Session cleared for {user_id}"}
 
-@app.post("/conversation")
+@app.post("/conversation", response_class=UTF8JSONResponse)
 async def conversation_endpoint(request: dict):
     """
     n8n WhatsApp Bridge endpoint
