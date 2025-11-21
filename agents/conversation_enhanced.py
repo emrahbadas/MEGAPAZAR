@@ -520,9 +520,21 @@ Kullanıcı: "Samsung S23 Ultra satıyorum. Snapdragon 8 Gen 2"
             self.log(f"Extracted: {extracted}, Still missing: {still_missing}")
             
             # Product info'yu güncelle
+            # Quick heuristic: if brand is missing and user replied with a short single-word answer,
+            # treat the whole message as the brand (helps WhatsApp short replies like "Barracuda")
+            if ("brand" in (still_missing or missing_fields or [])):
+                maybe_brand = message.strip()
+                # If user replied with 1-3 words and no punctuation, assume it's brand
+                if maybe_brand and len(maybe_brand.split()) <= 3 and all(c.isalnum() or c.isspace() for c in maybe_brand):
+                    extracted = extracted or {}
+                    extracted.setdefault("brand", maybe_brand)
+
             if extracted:
                 current_product_info.update(extracted)
                 session.update_product_info(current_product_info)
+                # ensure session persisted
+                from models.conversation_state import session_manager as _sm
+                _sm.update_session(session)
             
             # Minimum gerekli alanlar kontrolü - LLM'nin still_missing'ini override et
             required_fields = ["brand", "condition"]
@@ -568,18 +580,85 @@ Kullanıcı: "Samsung S23 Ultra satıyorum. Snapdragon 8 Gen 2"
     def _handle_preview(self, message: str, session, state: Dict) -> str:
         """Preview aşamasında kullanıcı yanıtı"""
         intent = session.intent
-        
         if intent == UserIntent.CONFIRMING:
+            # Kullanıcı onayladı - doğrudan Supabase'e kaydetmeye çalış
             session.set_stage(ConversationStage.CONFIRMING)
             state["response_type"] = "ready_to_confirm"
-            
-            # Session'dan listing bilgilerini state'e aktar
-            if session.listing_draft:
-                state["listing_draft"] = session.listing_draft
-            
-            return """✅ Tamam! İlanınız onaylandı ve kaydedilmeye hazır.
 
-Listing bilgileri response'ta. Şimdi `/api/listing/confirm` endpoint'ini kullanarak DB'ye kaydedin."""
+            # Session'dan listing bilgilerini al
+            draft = session.listing_draft or {}
+            state["listing_draft"] = draft
+
+            try:
+                # Save to Supabase using admin client (service role) to avoid RLS/permission issues
+                from utils.supabase_client import get_supabase_admin
+                supabase = get_supabase_admin()
+
+                # Prepare payload - ensure keys match listings table
+                payload = {
+                    "title": draft.get("title", ""),
+                    "description": draft.get("description", ""),
+                    "category": draft.get("category", "Diğer"),
+                    "price": draft.get("price", 0),
+                    "images": draft.get("images", []),
+                    "user_id": session.user_id,
+                    "status": "active"
+                }
+
+                # Log payload for debugging (will appear in server logs)
+                try:
+                    import json as _json
+                    self.log(f"Supabase insert payload: {_json.dumps(payload, ensure_ascii=False)}", "debug")
+                except Exception:
+                    self.log(f"Supabase insert payload (repr): {repr(payload)}", "debug")
+
+                res = supabase.table("listings").insert(payload).execute()
+
+                # Robustly inspect response for errors/data (client versions vary)
+                data = None
+                error = None
+                try:
+                    data = getattr(res, "data", None) or (res[0] if isinstance(res, (list, tuple)) and res else None) or (res.get("data") if isinstance(res, dict) else None)
+                except Exception:
+                    data = None
+
+                try:
+                    error = getattr(res, "error", None) or (res.get("error") if isinstance(res, dict) else None)
+                except Exception:
+                    error = None
+
+                # Log full raw response for diagnostics
+                try:
+                    self.log(f"Supabase insert raw response: {repr(res)}", "debug")
+                except Exception:
+                    pass
+
+                if error:
+                    self.log(f"Supabase insert error detail: {error}", "error")
+                    return "Üzgünüm, ilanınızı kaydederken bir sorun oldu. Lütfen daha sonra tekrar deneyin."
+
+                # If there is returned data, capture inserted id and mark session completed
+                if data:
+                    try:
+                        # data may be a list of inserted rows
+                        row = data[0] if isinstance(data, (list, tuple)) and data else data
+                        inserted_id = row.get("id") if isinstance(row, dict) else None
+                        if inserted_id:
+                            session.listing_id = inserted_id
+                            self.log(f"Inserted listing id: {inserted_id}")
+                    except Exception:
+                        pass
+
+                # Mark session completed and persist
+                session.set_stage(ConversationStage.COMPLETED)
+                from models.conversation_state import session_manager as _sm
+                _sm.update_session(session)
+
+                return "✅ İlanınız başarıyla yayınlandı! Teşekkürler."
+
+            except Exception as e:
+                self.log(f"Failed to save listing to Supabase: {e}", "error")
+                return "Üzgünüm, ilanınızı kaydederken bir hata oluştu. Lütfen daha sonra tekrar deneyin."
         
         elif intent == UserIntent.EDITING:
             session.set_stage(ConversationStage.EDITING)
